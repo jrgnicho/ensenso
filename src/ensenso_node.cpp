@@ -68,6 +68,7 @@ class EnsensoNode
 
     // TF
     std::string                       camera_frame_id_;
+
     // Ensenso grabber
     boost::signals2::connection       connection_;
     pcl::EnsensoGrabber::Ptr          ensenso_ptr_;
@@ -84,6 +85,7 @@ class EnsensoNode
       nh_private_.param("camera_frame_id", camera_frame_id_, std::string("ensenso_optical_frame"));
       if (!nh_private_.hasParam("camera_frame_id"))
         ROS_WARN_STREAM("Parameter [~camera_frame_id] not found, using default: " << camera_frame_id_);
+
       // Booleans
       bool front_light, projector;
       nh_private_.param("front_light", front_light, false);
@@ -95,6 +97,16 @@ class EnsensoNode
       nh_private_.param("point_cloud", point_cloud_, false);
       if (!nh_private_.hasParam("point_cloud"))
         ROS_WARN_STREAM("Parameter [~point_cloud] not found, using default: " << point_cloud_);
+
+      // config file
+      std::string config_json_file;
+      if (!nh_private_.getParam("config_json_file",config_json_file))
+      {
+        std::string msg = "Ensenso 'config_json_file' json file parameter was not set, closing driver";
+        ROS_ERROR_STREAM(msg);
+        throw std::runtime_error(msg);
+      }
+
       // Advertise topics
       image_transport::ImageTransport it(nh_);
       l_raw_pub_ = it.advertiseCamera("left/image_raw", 2);
@@ -104,13 +116,27 @@ class EnsensoNode
       cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2 >("depth/points", 2, true); // Latched
       linfo_pub_=nh_.advertise<sensor_msgs::CameraInfo> ("left/camera_info", 2, true);
       rinfo_pub_=nh_.advertise<sensor_msgs::CameraInfo> ("right/camera_info", 2, true);
+
+
       // Initialize Ensenso
       ensenso_ptr_.reset(new pcl::EnsensoGrabber);
       ensenso_ptr_->openDevice(serial);
       ensenso_ptr_->openTcpPort();
-      ensenso_ptr_->configureCapture();
+      if(ensenso_ptr_->configureCapture(config_json_file))
+      {
+        ROS_INFO_STREAM("Ensenso driver loaded configuration file: " + config_json_file);
+      }
+      else
+      {
+        std::string msg = "Ensenso driver failed to set configuration file: " + config_json_file;
+        ROS_ERROR_STREAM(msg);
+        throw std::runtime_error(msg);
+      }
+
       ensenso_ptr_->enableProjector(projector);
       ensenso_ptr_->enableFrontLight(front_light);
+
+
       // Start ensenso grabber
       ensenso::ConfigureStreaming::Request req;
       ensenso::ConfigureStreaming::Response res;

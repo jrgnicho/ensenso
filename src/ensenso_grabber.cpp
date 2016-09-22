@@ -5,6 +5,7 @@
 #include <pcl/point_types.h>
 #include <boost/format.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <fstream>
 #include "ensenso/ensenso_grabber.h"
 
 void ensensoExceptionHandling (const NxLibException &ex,
@@ -191,7 +192,7 @@ bool pcl::EnsensoGrabber::configureCapture (const bool auto_exposure,
                       const bool projector,
                       const int target_brightness,
                       const std::string trigger_mode,
-                      const bool use_disparity_map_area_of_interest) const
+                      const bool use_disparity_map_area_of_interest ) const
 {
   if (!device_open_)
     return (false);
@@ -213,6 +214,7 @@ bool pcl::EnsensoGrabber::configureCapture (const bool auto_exposure,
     captureParams[itmTargetBrightness].set (target_brightness);
     captureParams[itmTriggerMode].set (trigger_mode);
     captureParams[itmUseDisparityMapAreaOfInterest].set (use_disparity_map_area_of_interest);
+
   }
   catch (NxLibException &ex)
   {
@@ -220,6 +222,56 @@ bool pcl::EnsensoGrabber::configureCapture (const bool auto_exposure,
     return (false);
   }
   return (true);
+}
+
+bool pcl::EnsensoGrabber::configureCapture(const std::string config_json_file_path)
+{
+  /*
+   * This method was added according to the example in http://www.ensenso.com/manual/index.html?set_z-range.htm
+   */
+  if (!device_open_)
+    return (false);
+
+	std::ifstream file(config_json_file_path.c_str());
+	if (file.is_open() && file.rdbuf())
+	{
+
+	  try
+	  {
+      std::stringstream buffer;
+      buffer << file.rdbuf();
+      std::string const& fileContent = buffer.str();
+      NxLibItem tmp("tmp");
+      tmp.setJson(fileContent); // Parse json file content into temporary item
+
+      if (tmp[itmParameters].exists())
+      {
+        // Looks like we had a file containing the full camera node; let's just use the parameters subtree to overwrite
+        // the camera's parameter subtree
+        camera_[itmParameters].setJson(tmp[itmParameters].asJson(), true); // writeableNodesOnly = true silently skips
+                                                                          // read-only nodes instead of failing when
+                                                                          // encountering a read-only node
+      }
+      else
+      {
+        // It seems that our file only contained the parameters node, because we don't have Parameters as a subnode;
+        // We then use the entire content of the temporary node to rewrite the camera's parameters node
+        camera_[itmParameters].setJson(tmp.asJson(), true); // with writebleNodesOnly = true, see comment above
+      }
+	  }
+	  catch(NxLibException &ex)
+	  {
+	    ensensoExceptionHandling (ex, "configureCapture with file " + config_json_file_path);
+	    return (false);
+	  }
+	}
+	else
+	{
+		ROS_ERROR("Ensenso config file '%s'failed to open",config_json_file_path.c_str());
+		return false;
+	}
+
+	return true;
 }
 
 bool pcl::EnsensoGrabber::grabSingleCloud (pcl::PointCloud<pcl::PointXYZ> &cloud)

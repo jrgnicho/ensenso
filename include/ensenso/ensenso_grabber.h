@@ -104,6 +104,8 @@ public:
      * @param[in] target_brightness Between 40 and 210
      * @param[in] trigger_mode
      * @param[in] use_disparity_map_area_of_interest
+     * @param[in] min_distance set distance of measurement volume near plane in meters
+     * @param[in] max_distance set distance of measurement volume far plane in meters
      * @return True if successful, false otherwise
      * @note See [Capture tree item](http://www.ensenso.de/manual/index.html?capture.htm) for more
      * details about the parameters. */
@@ -122,6 +124,8 @@ public:
                       const int target_brightness = 80,
                       const std::string trigger_mode = "Software",
                       const bool use_disparity_map_area_of_interest = false) const;
+
+    bool configureCapture(const std::string config_json_file_path);
 
     /** @brief Capture a single point cloud and store it
      * @param[out] cloud The cloud to be filled
@@ -366,6 +370,14 @@ public:
 
     double getPatternGridSpacing() const;
     bool enableFrontLight(const bool enable) const;
+
+    /** @brief
+     * @param[in] min_distance The distance in meters at which the point cloud becomes visible
+     * @param[in] max_distacne The distance in meters at which the point cloud reach ends
+     * @return True if successful
+     * @warning The units are meters
+     */
+    bool setZRange(double min_distance,double max_distance);
     bool enableProjector(const bool enable) const;
 
     /** @brief Get the JSON string corresponding to an angle axis transformation
